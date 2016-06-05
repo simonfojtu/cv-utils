@@ -9,6 +9,7 @@ import random
 import math
 
 def isRotationInvariant(patch):
+    """ Test if given patch is rotation invariant """
     # Assert square and of reasonable size
     assert(len(patch) >= 2)
     assert(len(patch) == len(patch[0]))
@@ -28,13 +29,16 @@ def patchesEqual(p0, p1):
     return False
 
 class Grid:
-    def __init__(self, rows = 4, cols = 4, patchsize = 3, seed = 0):
+    def __init__(self, rows = 4, cols = 4, patch_size = 3, seed = 0):
+        assert(rows >= patch_size)
+        assert(cols >= patch_size)
         self.rows = rows
         self.cols = cols
-        self.patchsize = patchsize
+        self.patch_size = patch_size
         self.grid = []
         
     def construct(self):
+        """ Construct a grid, so that each patch of size `patch_size` or grater is unique. """
         grid = np.array([np.nan,]*self.rows * self.cols).reshape((self.rows, self.cols))
 
         # list of used patches
@@ -43,6 +47,7 @@ class Grid:
         grids.append(grid)
 
         processNext = False
+
         while len(grids) > 0:
             grid = grids.pop()
             if not np.isnan(grid).any():
@@ -52,9 +57,9 @@ class Grid:
             #print(grid)
             used = []
             processNext = False
-            for r in range(self.rows - self.patchsize + 1):
-                for c in range(self.cols - self.patchsize + 1):
-                    patch = grid[r:r+self.patchsize, c:c+self.patchsize]
+            for r in range(self.rows - self.patch_size + 1):
+                for c in range(self.cols - self.patch_size + 1):
+                    patch = grid[r:r+self.patch_size, c:c+self.patch_size]
                     nans = np.isnan(patch)
                     if nans.any():
                         # fill all np.nan positions with 0 or 1
@@ -76,7 +81,7 @@ class Grid:
                                 continue
 
                             newGrid = grid.copy()
-                            newGrid[r:r+self.patchsize, c:c+self.patchsize] = pcopy
+                            newGrid[r:r+self.patch_size, c:c+self.patch_size] = pcopy
                             grids.append(newGrid)
                             #processNext = True
                             #break
@@ -85,13 +90,13 @@ class Grid:
                             processNext = True
                             break
 
-                    #grid[r:r+self.patchsize, c:c+self.patchsize] = patch
                     used.append(patch)
                     if processNext:
                         break
                 if processNext:
                     break
 
+        # Test if final grid is valid (no np.nan elements)
         if not np.isnan(grid).any():
             self.grid = grid
         else:
@@ -99,48 +104,76 @@ class Grid:
 
 
     def print(self):
-        print("patchsize = " + str(self.patchsize))
+        """ Print grid to console """
+        print("patch_size = " + str(self.patch_size))
         print(self.grid)
 
     def isValid(self):
-        for r in range(self.rows-self.patchsize+1):
-            for c in range(self.cols-self.patchsize+1):
-                patch = self.grid[r:r+self.patchsize, c:c+self.patchsize]
+        """
+        Test if grid is valid:
+            1) All patches are rotation invariant
+            AND
+            2) Every patch is unique even when rotated
+        """
+        for r in range(self.rows-self.patch_size+1):
+            for c in range(self.cols-self.patch_size+1):
+                patch = self.grid[r:r+self.patch_size, c:c+self.patch_size]
                 if not isRotationInvariant(patch):
-                    print("patch at " + str(r) + ":" + str(c) + " of size " + str(self.patchsize) + " is not rotation invariant")
+                    print("patch at " + str(r) + ":" + str(c) + " of size " + str(self.patch_size) + " is not rotation invariant")
                     return False
 
-                for r_ in range(self.rows - self.patchsize + 1):
-                    for c_ in range(self.cols - self.patchsize + 1):
+                for r_ in range(self.rows - self.patch_size + 1):
+                    for c_ in range(self.cols - self.patch_size + 1):
                         if r_ == r and c_ == c:
                             continue
-                        patch_ = self.grid[r_:r_+self.patchsize, c_:c_+self.patchsize]
+                        patch_ = self.grid[r_:r_+self.patch_size, c_:c_+self.patch_size]
                         if patchesEqual(patch, patch_):
-                            print("patch at " + str(r) + ":" + str(c) + " of size " + str(self.patchsize) + " matches patch at " + str(r) + ":" + str(c))
+                            print("patch at " + str(r) + ":" + str(c) + " of size " + str(self.patch_size) + " matches patch at " + str(r_) + ":" + str(c_))
                             return False
 
         return True
 
-def draw(pixel_size=50, dpi = 150):
+def draw(*, cols = None, rows = None, patch_size = None, square_size = None, dpi = 150):
     """
-    Draw chessboard on a A4 paper
-    TODO add circles for unique determining camera position from a subset of squares
+    Draw chessboard wth optional circles grid
+
+    TODO: write grid identification number to the output file
     """
     # A4 size paper
     width = 8.3 # inch
     height = 11.7 # inch
+
     # number of squares
-    cols = int(width * dpi // pixel_size)
-    rows = int(height * dpi // pixel_size)
+    if cols is None or rows is None:
+        if square_size is None:
+            # default square size in pixels
+            square_size = 50
+
+        cols = int(width * dpi // square_size)
+        rows = int(height * dpi // square_size)
+    else:
+        if cols is None or rows is None:
+            print("Specify either both number of rows and cols or none of them")
+            return
+        if square_size is None:
+            square_size = int(min(dpi * width / cols, dpi * height / rows))
+            print("Automatic square size = " + str(square_size) + "px")
+        width = cols * square_size / dpi
+        height = rows * square_size / dpi
+
+    assert(rows is not None)
+    assert(cols is not None)
+    assert(square_size is not None)
 
     print("Drawing grid " + str(rows) + "x" + str(cols))
 
     def square(i, j):
         "Return the square corners, suitable for use in PIL drawings" 
-        return (i * pixel_size, j * pixel_size,
-                (i + 1) * pixel_size, (j+1) * pixel_size)
+        return (i * square_size, j * square_size,
+                (i + 1) * square_size, (j+1) * square_size)
 
-    def sq2ellipse(rect, pad=12):
+    def sq2ellipse(rect):
+        pad = int(square_size / 5)
         return list(map(add, rect, (pad, pad, -pad, -pad)))
     
     image = Image.new('L',
@@ -148,11 +181,19 @@ def draw(pixel_size=50, dpi = 150):
                  (255) # white
             )
 
-    for patchsize in range(4,6):
-        grid = Grid(rows, cols, patchsize)
+    if patch_size is None:
+        for ps in range(4,6):
+            grid = Grid(rows, cols, ps)
+            grid.construct()
+            if grid.isValid():
+                break
+    else:
+        grid = Grid(rows, cols, patch_size)
         grid.construct()
-        if grid.isValid():
-            break
+        if not grid.isValid():
+            print("Failed to construct grid with given parameters")
+            return
+
 
     grid.print()
 
@@ -167,39 +208,32 @@ def draw(pixel_size=50, dpi = 150):
             if (c + off) % 2 == 0:
                 draw_square(square(c, r), fill='black')
                 color = 'white'
+            # draw circles
             if grid.grid[r,c] == 0:
                 draw_ellipse(sq2ellipse(square(c,r)), fill=color)
         off = (off + 1) % 2
 
-    # draw circles
 
 
     
     return image
 
 # Test isRotationInvariant function
+# TODO convert to TestCase
 assert(isRotationInvariant([[1,0],[0,0]]))
 assert(not isRotationInvariant([[1,0],[0,1]]))
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--rows","-r", help="number of rows", type=int)
 parser.add_argument("--cols","-c", help="number of rows", type=int)
-parser.add_argument("--patch","-p", help="size of patch", type=int)
+parser.add_argument("--patch","-p", help="size of patch of circles", type=int)
+parser.add_argument("--square","-s", help="size of square (px)", type=int)
+
+parser.add_argument("--out","-o", help="output file", default="chessboard.png")
 
 args = parser.parse_args()
 
-# Draw simple chessboard
-#chessboard = draw_chessboard()
-#chessboard.save("chessboard-a4.png")
 
-#g = Grid(args.rows, args.cols, args.patch)
-#
-#g.construct()
-#g.print()
-#if g.isValid():
-#    print("Hoorray")
-#else:
-#    print("Nada")
+chessboard = draw(cols = args.cols, rows = args.rows, patch_size = args.patch, square_size = args.square)
+chessboard.save(args.out)
 
-chessboard = draw()
-chessboard.save("chessboard-a4.png")
