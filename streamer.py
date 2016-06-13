@@ -27,4 +27,5 @@ def imageProducer(url):
         cap.release()
 
 
+# Call with argument 'tcp://*:5557'
 imageProducer(sys.argv[1])
