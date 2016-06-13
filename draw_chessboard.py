@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 from itertools import cycle
 from operator import add
 import argparse
@@ -102,11 +102,14 @@ class Grid:
         else:
             self.grid = None
 
+    def hash(self):
+        flat=[str(int(item)) for sublist in self.grid for item in sublist]
+        return int(''.join(flat),2)
 
     def print(self):
         """ Print grid to console """
         print("patch_size = " + str(self.patch_size))
-        print(self.grid)
+        print("hash = " + str(self.hash()))
 
     def isValid(self):
         """
@@ -133,7 +136,7 @@ class Grid:
 
         return True
 
-def draw(*, cols = None, rows = None, patch_size = None, square_size = None, dpi = 150):
+def draw(*, cols = 0, rows = 0, patch_size = 0, square_size = 0, dpi = 300):
     """
     Draw chessboard wth optional circles grid
 
@@ -144,33 +147,33 @@ def draw(*, cols = None, rows = None, patch_size = None, square_size = None, dpi
     height = 11.7 # inch
 
     # number of squares
-    if cols is None or rows is None:
-        if square_size is None:
+    if cols == 0 or rows == 0:
+        if square_size == 0:
             # default square size in pixels
-            square_size = 50
+            square_size = int(dpi / 3)
 
         cols = int(width * dpi // square_size)
         rows = int(height * dpi // square_size)
     else:
-        if cols is None or rows is None:
+        if cols == 0 or rows == 0:
             print("Specify either both number of rows and cols or none of them")
             return
-        if square_size is None:
+        if square_size == 0:
             square_size = int(min(dpi * width / cols, dpi * height / rows))
             print("Automatic square size = " + str(square_size) + "px")
         width = cols * square_size / dpi
         height = rows * square_size / dpi
 
-    assert(rows is not None)
-    assert(cols is not None)
-    assert(square_size is not None)
+    assert(rows != 0)
+    assert(cols != 0)
+    assert(square_size != 0)
 
     print("Drawing grid " + str(rows) + "x" + str(cols))
 
     def square(i, j):
         "Return the square corners, suitable for use in PIL drawings" 
         return (i * square_size, j * square_size,
-                (i + 1) * square_size, (j+1) * square_size)
+                (i + 1) * square_size-1, (j+1) * square_size-1)
 
     def sq2ellipse(rect):
         pad = int(square_size / 5)
@@ -181,12 +184,15 @@ def draw(*, cols = None, rows = None, patch_size = None, square_size = None, dpi
                  (255) # white
             )
 
-    if patch_size is None:
+    if patch_size == 0:
         for ps in range(4,6):
             grid = Grid(rows, cols, ps)
             grid.construct()
             if grid.isValid():
                 break
+        else:
+            print("Failed to construct grid with given parameters")
+            return
     else:
         grid = Grid(rows, cols, patch_size)
         grid.construct()
@@ -213,6 +219,11 @@ def draw(*, cols = None, rows = None, patch_size = None, square_size = None, dpi
                 draw_ellipse(sq2ellipse(square(c,r)), fill=color)
         off = (off + 1) % 2
 
+    fnt = ImageFont.truetype('/usr/share/fonts/dejavu/DejaVuSerif.ttf', size=int(dpi/8))
+
+    text = "cols = %i, rows = %i, patch size = %i, square size = %i, dpi = %i" % (cols, rows, patch_size, square_size, dpi)
+
+    ImageDraw.Draw(image).text((int(dpi/30),dpi*height-int(dpi/6)), text, font=fnt, fill=(127))
 
 
     
@@ -224,16 +235,17 @@ assert(isRotationInvariant([[1,0],[0,0]]))
 assert(not isRotationInvariant([[1,0],[0,1]]))
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--rows","-r", help="number of rows", type=int)
-parser.add_argument("--cols","-c", help="number of rows", type=int)
-parser.add_argument("--patch","-p", help="size of patch of circles", type=int)
-parser.add_argument("--square","-s", help="size of square (px)", type=int)
+parser.add_argument("--rows","-r", help="number of rows", type=int, default=0)
+parser.add_argument("--cols","-c", help="number of rows", type=int, default=0)
+parser.add_argument("--patch","-p", help="size of patch of circles", type=int, default=0)
+parser.add_argument("--square","-s", help="size of square (px)", type=int, default=0)
+parser.add_argument("--dpi", help="dots per inch (DPI)", type=int, default=300)
 
 parser.add_argument("--out","-o", help="output file", default="chessboard.png")
 
 args = parser.parse_args()
 
 
-chessboard = draw(cols = args.cols, rows = args.rows, patch_size = args.patch, square_size = args.square)
+chessboard = draw(cols = args.cols, rows = args.rows, patch_size = args.patch, square_size = args.square, dpi = args.dpi)
 chessboard.save(args.out)
 
