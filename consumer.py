@@ -5,6 +5,9 @@ import cv2
 import datetime
 import argparse
 import numpy as np
+from sets import Set
+
+import ocv_calibration
 
 def showHarris(image):
     gray = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
@@ -26,7 +29,7 @@ def showHarris(image):
 
     cv2.imshow('harris',img)
 
-    cv2.waitKey(1)
+    #cv2.waitKey(1)
 
 def showSift(img):
     gray= cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
@@ -42,6 +45,23 @@ def showSift(img):
 
     cv2.imshow('sift keypoints',img)
 
+def drawOCVCorners(img):
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+    gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+
+    # Find the chess board corners
+    ret, corners = cv2.findChessboardCorners(gray, (7,6),None)
+
+    # If found, add object points, image points (after refining them)
+    if ret == True:
+
+        corners2 = cv2.cornerSubPix(gray,corners,(11,11),(-1,-1),criteria)
+
+        # Draw and display the corners
+        img = cv2.drawChessboardCorners(img, (7,6), corners2,ret)
+        #cv2.imshow('ocv corners',img)
+
+
 def consumer(url):
     context = zmq.Context()
     # recieve {image, timestamp}
@@ -52,18 +72,38 @@ def consumer(url):
     #consumer_sender = context.socket(zmq.PUSH)
     #consumer_sender.connect("tcp://127.0.0.1:5558")
     
+    images = []
+
     while True:
         work = consumer_receiver.recv_pyobj()
         image = work['image']
         timestamp = work['timestamp']
 
-        showHarris(image)
+        key = cv2.waitKey(1)
+        if key != -1:
+            # 's'
+            if key == 115:
+                print('image captured')
+                images.append(image)
+                print(images)
+
+            # 'c'
+            if key == 99:
+                print('calibration started')
+                calib = ocv_calibration.OCV_calibration()
+                print(calib.calibrate(images))
+
+            if key == 27:
+                return
+
+        #showHarris(image)
         #showSift(image)
+        drawOCVCorners(image)
 
         cv2.putText(image, str(timestamp), (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.37, (255,255,0))
         cv2.imshow('frame',image)
 
-        cv2.waitKey(1)
+
 
 parser = argparse.ArgumentParser(description='Receive images from 0MQ for processing.')
 parser.add_argument('--url', help='url of the streamer ("tcp://192.168.1.200:5557")')
