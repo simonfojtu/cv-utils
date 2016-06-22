@@ -45,7 +45,8 @@ def showSift(img):
 
     cv2.imshow('sift keypoints',img)
 
-def drawOCVCorners(img):
+def drawOCVCorners(image):
+    img = image.copy()
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
     gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
 
@@ -58,8 +59,51 @@ def drawOCVCorners(img):
         corners2 = cv2.cornerSubPix(gray,corners,(11,11),(-1,-1),criteria)
 
         # Draw and display the corners
-        img = cv2.drawChessboardCorners(img, (7,6), corners2,ret)
-        #cv2.imshow('ocv corners',img)
+        cv2.drawChessboardCorners(img, (7,6), corners2,ret)
+        cv2.imshow('ocv corners',img)
+
+def drawCorners(img):
+    min_dilations = 0
+    max_dilations = 7
+    gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+    for k in range(0, 6):
+        for dilations in range(min_dilations, max_dilations):
+    
+            #cv2.adaptiveThreshold(img, thresh_img, 255,
+            #        cv2.CV_ADAPTIVE_THRESH_MEAN_C, CV_THRESH_BINARY, block_size, (k/2)*5)
+    
+            #if dilations > 0:
+            #    thresh_img = cv2.dilate(thresh_img, 0, dilations - 1)
+
+            mean = cv2.mean(gray)[0]
+            thresh_level = int(mean - 10)
+            thresh_level = max(thresh_level, 10)
+
+            retval, thresh_img = cv2.threshold(gray, thresh_level, 255, cv2.THRESH_BINARY)
+            cv2.dilate(thresh_img, None, thresh_img, (-1,-1), dilations)
+
+            rows = len(thresh_img)
+            cols = len(thresh_img[0])
+                    
+            cv2.rectangle(thresh_img, (0, 0), (cols-1, rows-1), (255, 255, 255), 3, 8)
+            
+            cv2.imshow("drawCorners: thresh_img " + str(k*0) + str(dilations), thresh_img)
+            cv2.waitKey(1)
+
+    
+def drawCircles(image):
+    gray = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (9, 9), 2, 2)
+    circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 2, 1)
+
+    img = image.copy()
+    for circle in circles[0]:
+        c = (circle[0], circle[1])
+        r = circle[2]
+        cv2.circle(img, c, r, (0, 255, 0), 1)
+    cv2.imshow("circles", img)
+
+
 
 
 def consumer(url):
@@ -86,6 +130,7 @@ def consumer(url):
                 print('image captured')
                 images.append(image)
                 print(images)
+                cv.imwrite(str(timestamp) + '.png', image)
 
             # 'c'
             if key == 99:
@@ -98,7 +143,9 @@ def consumer(url):
 
         #showHarris(image)
         #showSift(image)
-        drawOCVCorners(image)
+        #drawOCVCorners(image)
+        #drawCorners(image)
+        drawCircles(image)
 
         cv2.putText(image, str(timestamp), (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.37, (255,255,0))
         cv2.imshow('frame',image)
