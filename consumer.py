@@ -5,6 +5,7 @@ import cv2
 import datetime
 import argparse
 import numpy as np
+from sklearn import mixture
 from sets import Set
 
 import ocv_calibration
@@ -91,23 +92,52 @@ def drawCorners(img):
             cv2.waitKey(1)
 
     
-def drawCircles(image):
+def detectCircles(image):
     gray = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
-    gray = cv2.GaussianBlur(gray, (13, 13), 6)
+    blur = cv2.GaussianBlur(gray, (13, 13), 6)
 
-    circles = cv2.HoughCircles(gray,cv2.HOUGH_GRADIENT,1,20,
+    circles = cv2.HoughCircles(blur,cv2.HOUGH_GRADIENT,1,20,
                                         param1=50,param2=30,minRadius=9,maxRadius=0)
 
 
-    img = gray.copy()
+    margin = 5
+    img = image.copy()
+    points = None
     if not circles is None:
+        points = []
         circles = np.uint16(np.around(circles))
         for circle in circles[0]:
-            c = (circle[0], circle[1])
+            c = (circle[0], circle[1]) # x, y:
             r = circle[2]
-            cv2.circle(img, c, r, 255, 4)
+            cv2.circle(img, c, r, (0, 200, 0), 4)
+
+            pxs = img[c[1]-margin:c[1]+margin, c[0]-margin:c[0]+margin]
+            v = np.amax(pxs)
+            cv2.putText(img, str(v), c, cv2.FONT_HERSHEY_SIMPLEX, 0.3, (200, 255, 0))
+            points.append((c, v))
+
     cv2.imshow("circles", img)
 
+    return points
+
+def getGrid(points):
+    """ Fit a rectangular grid to points """
+    raise NotImplemented
+
+def binarizeGMM(points):
+    """ Determine which points are dark=0 and light=1 """
+    g = mixture.GMM(n_components=2)
+    data = [[x[1]] for x in points]
+    g.fit(data)
+    binary = np.logical_and(g.predict(data), 1)
+    if g.means_[1][0] < g.means_[0][0]:
+        binary = np.logical_not(binary)
+    print(zip(data, binary))
+    return binary
+
+def binarize(points):
+    data = [[x[1]] for x in points]
+    return np.greater(data, 60)
 
 
 
@@ -150,7 +180,21 @@ def consumer(url):
         #showSift(image)
         #drawOCVCorners(image)
         #drawCorners(image)
-        drawCircles(image)
+        points = detectCircles(image)
+
+        if points is not None:
+            b = binarize(points)
+
+            for idx, point in enumerate(points):
+                c = point[0]
+                #cv2.circle(img, c, r, (0, 200, 0), 4)
+
+                if b[idx]:
+                    cv2.putText(image, "1", c, cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0))
+                else:
+                    cv2.putText(image, "0", c, cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255))
+
+
 
         cv2.putText(image, str(timestamp), (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.37, (255,255,0))
         cv2.imshow('frame',image)
